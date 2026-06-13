@@ -2,7 +2,6 @@
 
 A full-stack Trello/Jira-style project management app with kanban boards, team collaboration, and an analytics dashboard.
 
-![Stack](https://img.shields.io/badge/React-18-61dafb) ![Stack](https://img.shields.io/badge/Express-4-339933) ![Stack](https://img.shields.io/badge/MongoDB-Mongoose-47A248) ![Stack](https://img.shields.io/badge/Tailwind-v4-38bdf8)
 
 ## Features
 
