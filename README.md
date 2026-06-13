@@ -23,7 +23,7 @@ A full-stack Trello/Jira-style project management app with kanban boards, team c
 | Database | MongoDB (embedded via mongodb-memory-server in dev, Atlas in prod) |
 | Auth | JWT (jsonwebtoken) + bcryptjs |
 
-## Getting Started
+##For local
 
 ```bash
 # Terminal 1 — API (port 5000)
@@ -37,7 +37,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000, create an account, and start adding projects.
+Open http://localhost:3000, create an account, and start adding projects. 
 
 > **No MongoDB install needed** — the server auto-starts an embedded MongoDB (data persists in `server/data/`). To use a real database, set `MONGODB_URI` in `server/.env` (e.g. a free MongoDB Atlas cluster).
 
