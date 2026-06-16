@@ -44,8 +44,8 @@ export default function Projects() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 md:p-8">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Projects</h1>
           <p className="mt-1 text-sm text-slate-400">All projects you own or belong to</p>

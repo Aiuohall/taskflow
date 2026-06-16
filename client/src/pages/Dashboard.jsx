@@ -81,7 +81,7 @@ export default function Dashboard() {
   }));
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <h1 className="text-2xl font-bold">Dashboard</h1>
       <p className="mt-1 text-sm text-slate-400">Overview of everything across your projects</p>
 

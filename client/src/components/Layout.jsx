@@ -1,6 +1,8 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FolderKanban, LogOut, CheckSquare } from "lucide-react";
+import { useState } from "react";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, FolderKanban, LogOut, CheckSquare, Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useEffect } from "react";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -10,6 +12,13 @@ const navItems = [
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+
+  // Close the drawer whenever the route changes (e.g. tapping a nav item).
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -18,12 +27,35 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-slate-800 bg-slate-900/60">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500">
-            <CheckSquare size={18} className="text-white" />
+      {/* Backdrop — only on mobile when the drawer is open */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-slate-900 transition-transform duration-200 md:static md:w-60 md:translate-x-0 md:bg-slate-900/60 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between px-5 py-5">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500">
+              <CheckSquare size={18} className="text-white" />
+            </div>
+            <span className="text-lg font-bold tracking-tight">TaskFlow</span>
           </div>
-          <span className="text-lg font-bold tracking-tight">TaskFlow</span>
+          {/* Close button — only on mobile */}
+          <button
+            onClick={() => setOpen(false)}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 md:hidden"
+            aria-label="Close menu"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-2">
@@ -66,9 +98,28 @@ export default function Layout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile top bar with hamburger — hidden on desktop */}
+        <header className="flex items-center gap-3 border-b border-slate-800 bg-slate-900/60 px-4 py-3 md:hidden">
+          <button
+            onClick={() => setOpen(true)}
+            className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-800"
+            aria-label="Open menu"
+          >
+            <Menu size={22} />
+          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500">
+              <CheckSquare size={15} className="text-white" />
+            </div>
+            <span className="font-bold tracking-tight">TaskFlow</span>
+          </div>
+        </header>
+
+        <main className="min-w-0 flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
