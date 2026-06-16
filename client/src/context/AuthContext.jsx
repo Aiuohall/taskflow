@@ -34,8 +34,27 @@ export function AuthProvider({ children }) {
     handleAuth(res.data);
   };
 
-  const register = async (name, email, password) => {
-    const res = await api.post("/auth/register", { name, email, password });
+  // Step 1 of registration — sends a verification code, no token yet.
+  const registerStart = (name, email, password) =>
+    api.post("/auth/register", { name, email, password });
+
+  // Step 2 — verify the code and finish creating the account.
+  const verifyRegistration = async (email, code) => {
+    const res = await api.post("/auth/register/verify", { email, code });
+    handleAuth(res.data);
+  };
+
+  const resendCode = (email) => api.post("/auth/register/resend", { email });
+
+  const forgotPassword = (email) => api.post("/auth/forgot-password", { email });
+
+  const resetPassword = async (email, code, password) => {
+    const res = await api.post("/auth/reset-password", { email, code, password });
+    handleAuth(res.data);
+  };
+
+  const demoLogin = async () => {
+    const res = await api.post("/auth/demo");
     handleAuth(res.data);
   };
 
@@ -45,7 +64,20 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        registerStart,
+        verifyRegistration,
+        resendCode,
+        forgotPassword,
+        resetPassword,
+        demoLogin,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

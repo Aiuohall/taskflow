@@ -17,7 +17,9 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.pre("save", async function () {
-  if (this.isModified("password")) {
+  // Skip hashing when the caller has already provided a bcrypt hash
+  // (e.g. a verified pending registration). Set via doc.$locals.passwordAlreadyHashed.
+  if (this.isModified("password") && !this.$locals?.passwordAlreadyHashed) {
     this.password = await bcrypt.hash(this.password, 10);
   }
 });
