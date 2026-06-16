@@ -199,8 +199,8 @@ export default function Board() {
   }
 
   return (
-    <div className="flex h-full flex-col p-8">
-      <div className="flex items-center gap-4">
+    <div className="flex h-full flex-col p-4 sm:p-6 md:p-8">
+      <div className="flex flex-wrap items-center gap-3">
         <Link to="/projects" className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800">
           <ArrowLeft size={18} />
         </Link>
