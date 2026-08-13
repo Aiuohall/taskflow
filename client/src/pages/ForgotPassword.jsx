@@ -15,18 +15,21 @@ export default function ForgotPassword() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [notRegistered, setNotRegistered] = useState(false);
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submitRequest = async (e) => {
     e.preventDefault();
     setError("");
+    setNotRegistered(false);
     setBusy(true);
     try {
       await forgotPassword(email);
       setStep("reset");
-      setInfo(`If an account exists for ${email}, a 6-digit code is on its way.`);
+      setInfo(`We sent a 6-digit code to ${email}.`);
     } catch (err) {
+      setNotRegistered(Boolean(err.response?.data?.notRegistered));
       setError(err.response?.data?.message || err.userMessage || err.message || "Something went wrong");
     } finally {
       setBusy(false);
@@ -64,7 +67,19 @@ export default function ForgotPassword() {
 
         {step === "request" ? (
           <form onSubmit={submitRequest} className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-            {error && <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</p>}
+            {error && (
+              <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                <p>{error}</p>
+                {notRegistered && (
+                  <Link
+                    to="/register"
+                    className="mt-1.5 inline-block font-semibold text-indigo-400 underline-offset-2 hover:underline"
+                  >
+                    Create an account →
+                  </Link>
+                )}
+              </div>
+            )}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-300">Email</label>
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="you@example.com" autoFocus />

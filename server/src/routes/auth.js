@@ -246,18 +246,34 @@ router.post("/login", loginLimiter, async (req, res, next) => {
 
 // ─────────────────────── Forgot / reset password ──────────────────────
 
-// POST /api/auth/forgot-password — email a reset code. Always responds 200 so
-// the endpoint can't be used to discover which emails are registered.
+/*
+ * POST /api/auth/forgot-password — email a reset code.
+ *
+ * This deliberately tells the caller when an address has no account. The
+ * privacy-preserving alternative is to always answer "if an account exists,
+ * we've sent a code", which stops the endpoint being used to enumerate which
+ * emails are registered — but it also leaves someone who mistyped their
+ * address waiting forever for a code that was never sent. The clearer message
+ * was chosen for this app; the per-IP and per-address limits on this route are
+ * what keep bulk probing impractical.
+ */
 router.post("/forgot-password", otpLimiter, async (req, res, next) => {
   try {
     const email = (req.body.email || "").toLowerCase().trim();
-    const genericOk = {
-      message: "If an account exists for that email, a reset code has been sent.",
-    };
-    if (!isEmail(email)) return res.json(genericOk);
+    if (!email) {
+      return res.status(400).json({ message: "Please enter your email address" });
+    }
+    if (!isEmail(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address" });
+    }
 
     const user = await User.findOne({ email }).lean();
-    if (!user) return res.json(genericOk);
+    if (!user) {
+      return res.status(404).json({
+        message: "No account is registered with this email. Please create an account first.",
+        notRegistered: true,
+      });
+    }
 
     const existing = await VerificationCode.findOne({ email, purpose: "reset" });
     const throttled = checkSendThrottle(existing);
@@ -290,7 +306,7 @@ router.post("/forgot-password", otpLimiter, async (req, res, next) => {
     });
     if (!sent) return;
 
-    res.json(genericOk);
+    res.json({ message: "We've sent a reset code to your email." });
   } catch (err) {
     next(err);
   }

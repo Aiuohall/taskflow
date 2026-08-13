@@ -114,9 +114,16 @@ router.post("/:id/members", async (req, res, next) => {
     if (!project) return;
 
     const email = (req.body.email || "").toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "No user found with that email" });
+      return res.status(404).json({
+        message: `No TaskFlow account is registered with ${email}. Ask them to sign up first, then invite them.`,
+        notRegistered: true,
+      });
     }
     if (project.hasAccess(user._id)) {
       return res.status(409).json({ message: "That user is already on this project" });
