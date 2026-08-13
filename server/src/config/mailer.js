@@ -1,16 +1,26 @@
 import nodemailer from "nodemailer";
 
 /**
- * SMTP transport for OTP + password-reset mail.
+ * Transport for OTP + password-reset mail.
  *
- * Two ways to configure it, checked in this order:
+ * Three ways to configure it, checked in this order:
  *
- *  1. Generic SMTP (recommended for production) — works with any provider
- *     (Resend, Brevo, Mailgun, SendGrid, Postmark, Amazon SES…):
+ *  1. Resend HTTP API (recommended — the only one that works on hosts which
+ *     block outbound SMTP, which includes Render's free tier and every
+ *     serverless platform):
+ *       RESEND_API_KEY, [MAIL_FROM]
+ *
+ *  2. Generic SMTP — any provider (Brevo, Mailgun, SendGrid, Postmark, SES):
  *       SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, [MAIL_FROM]
  *
- *  2. Gmail + App Password (fine for a demo, fragile long-term — see below):
+ *  3. Gmail + App Password (fine locally, fragile in production — see below):
  *       GMAIL_USER, GMAIL_APP_PASSWORD
+ *
+ * Why option 1 exists: most free hosting tiers block outbound TCP on the SMTP
+ * ports (25/465/587) to prevent spam, and the block manifests as a connection
+ * that hangs until it times out rather than a clean refusal. No SMTP provider
+ * can work around that. Sending over HTTPS to a mail API sidesteps it entirely,
+ * because port 443 is never blocked.
  *
  * If neither is set we fall back to "console mode": the body is logged to the
  * server console instead of sent, so every flow stays testable without creds.
@@ -44,7 +54,21 @@ const SEND_DEADLINE_MS = 20000;
 // TLS + AUTH handshake (~1-2s against Gmail) on every single code we send.
 const POOL = { pool: true, maxConnections: 3, maxMessages: 50 };
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
 function buildTransport() {
+  if (RESEND_API_KEY) {
+    return {
+      kind: "resend-http",
+      http: true,
+      // resend.dev is Resend's shared test sender. It only delivers to the
+      // address that owns the API key, which is enough to prove the pipeline
+      // works — verify your own domain to email anyone else.
+      from: process.env.MAIL_FROM || "onboarding@resend.dev",
+      transport: null,
+    };
+  }
+
   if (process.env.SMTP_HOST) {
     const port = Number(process.env.SMTP_PORT || 587);
     return {
@@ -107,6 +131,17 @@ if (!built) {
 }
 
 function describeError(err) {
+  if (err.isResend) {
+    if (err.message.includes("403") || err.message.includes("422")) {
+      return (
+        `${err.message} — Resend refused the sender address. Either verify your domain at ` +
+        "resend.com/domains and set MAIL_FROM to an address on it, or keep the default " +
+        "onboarding@resend.dev, which can only deliver to the account owner's own email."
+      );
+    }
+    if (err.message.includes("401")) return "Resend rejected RESEND_API_KEY. Check it was copied in full.";
+    return err.message;
+  }
   // Gmail's auth rejection is the failure mode that silently kills OTP after
   // weeks of working, so name it explicitly instead of dumping a raw trace.
   if (err.code === "EAUTH" || err.responseCode === 535) {
@@ -134,7 +169,53 @@ function describeError(err) {
  * immediately, instead of the first time a real user tries to sign up.
  * Deliberately not awaited by the caller — it must never block startup.
  */
+/** POST the message to Resend over HTTPS. Never touches an SMTP port. */
+async function sendViaResend({ to, subject, html, text }) {
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from: `${FROM_NAME} <${built.from}>`, to: [to], subject, html, text }),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    const err = new Error(`Resend API ${res.status}: ${detail.slice(0, 300)}`);
+    // A bad key or an unverified sender fails identically forever — don't retry.
+    err.permanent = [401, 403, 422].includes(res.status);
+    err.isResend = true;
+    throw err;
+  }
+}
+
 export async function verifyMailer() {
+  if (!built) return false;
+
+  if (built.http) {
+    // Listing domains is a cheap authenticated call — it proves the key works
+    // without sending anything.
+    try {
+      const res = await fetch("https://api.resend.com/domains", {
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) throw new Error(`Resend API rejected the key (HTTP ${res.status})`);
+      mailerStatus.ready = true;
+      mailerStatus.lastError = null;
+      console.log(`[mailer] Resend HTTP API ready (sending as ${built.from})`);
+      return true;
+    } catch (err) {
+      mailerStatus.ready = false;
+      mailerStatus.lastError = `Resend check failed: ${err.message}`;
+      mailerStatus.lastErrorAt = new Date().toISOString();
+      console.error(`[mailer] ${mailerStatus.lastError}`);
+      return false;
+    }
+  }
+
   if (!transport) return false;
   try {
     await transport.verify();
@@ -156,14 +237,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Auth and "recipient refused" failures will fail identically on a retry, so
 // only back off and retry the transient network/throttle cases.
 const isRetryable = (err) =>
-  !(err.code === "EAUTH" || err.responseCode === 535 || err.responseCode === 550);
+  !(err.permanent || err.code === "EAUTH" || err.responseCode === 535 || err.responseCode === 550);
 
 /**
  * Send an email. Throws on permanent failure so the caller can tell the user
  * the truth ("we couldn't send the code") rather than a misleading success.
  */
 export async function sendMail({ to, subject, html, text }) {
-  if (!transport) {
+  if (!built) {
     console.log("\n========= [DEV EMAIL] =========");
     console.log(`To:      ${to}`);
     console.log(`Subject: ${subject}`);
@@ -184,13 +265,17 @@ export async function sendMail({ to, subject, html, text }) {
       break;
     }
     try {
-      await transport.sendMail({
-        from: `"${FROM_NAME}" <${built.from}>`,
-        to,
-        subject,
-        text,
-        html,
-      });
+      if (built.http) {
+        await sendViaResend({ to, subject, html, text });
+      } else {
+        await transport.sendMail({
+          from: `"${FROM_NAME}" <${built.from}>`,
+          to,
+          subject,
+          text,
+          html,
+        });
+      }
       mailerStatus.ready = true;
       mailerStatus.lastSentAt = new Date().toISOString();
       mailerStatus.lastError = null;

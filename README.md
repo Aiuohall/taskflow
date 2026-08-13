@@ -95,7 +95,17 @@ start `npm start`. Then set these under **Environment** (see [`server/.env.examp
 | `MONGODB_URI` | **Required** — your Atlas string. The server refuses to boot in production without it, rather than silently using a database that resets on every restart. |
 | `JWT_SECRET` | Long random string. Changing it logs everyone out. |
 | `CLIENT_ORIGIN` | Exact frontend origin, no trailing slash. Wrong value ⇒ browser blocks every call on CORS. |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Or the `SMTP_*` set. Without these, codes are only written to the server log — never emailed. |
+| `RESEND_API_KEY` | Email delivery. Without it, codes are only written to the server log — never emailed. |
+
+**Use `RESEND_API_KEY`, not SMTP, on Render.** Render's free tier (like every serverless
+platform) blocks outbound SMTP ports to prevent spam, and the block appears as a connection that
+hangs until it times out — so no SMTP provider, Gmail included, can work. Resend's HTTP API goes
+over port 443, which is never blocked. `GMAIL_*` and `SMTP_*` still work locally and on hosts that
+permit SMTP.
+
+By default mail is sent from `onboarding@resend.dev`, which delivers **only to the address that
+owns the Resend account** — enough to verify the flow. To email anyone else, verify a domain at
+[resend.com/domains](https://resend.com/domains) and set `MAIL_FROM=noreply@yourdomain.com`.
 
 Confirm it's alive before touching the frontend:
 
