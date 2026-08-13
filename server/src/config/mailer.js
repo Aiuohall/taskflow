@@ -318,6 +318,15 @@ export async function sendMail({ to, subject, html, text }) {
   throw wrapped;
 }
 
+// The intro line embeds the account holder's name, which is user input going
+// straight into an HTML document. Escape it — an unescaped name could inject
+// markup (including a link) into a mail that looks like it came from us.
+const escapeHtml = (s) =>
+  String(s).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
+  );
+
 // Reusable branded template for a 6-digit verification code.
 export function codeEmail({ title, intro, code }) {
   const text = `${title}\n\n${intro}\n\nYour code: ${code}\n\nThis code expires in 10 minutes. If you didn't request this, you can ignore this email.`;
@@ -327,10 +336,10 @@ export function codeEmail({ title, intro, code }) {
       <div style="width:32px;height:32px;border-radius:8px;background:#6366f1;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700;">✓</div>
       <span style="font-size:18px;font-weight:700;">TaskFlow</span>
     </div>
-    <h1 style="font-size:20px;margin:0 0 8px;">${title}</h1>
-    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px;">${intro}</p>
+    <h1 style="font-size:20px;margin:0 0 8px;">${escapeHtml(title)}</h1>
+    <p style="color:#475569;font-size:14px;line-height:1.6;margin:0 0 20px;">${escapeHtml(intro)}</p>
     <div style="background:#f1f5f9;border-radius:12px;padding:20px;text-align:center;margin-bottom:20px;">
-      <div style="font-size:34px;font-weight:800;letter-spacing:8px;color:#4f46e5;">${code}</div>
+      <div style="font-size:34px;font-weight:800;letter-spacing:8px;color:#4f46e5;">${escapeHtml(code)}</div>
     </div>
     <p style="color:#94a3b8;font-size:12px;line-height:1.6;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
   </div>`;

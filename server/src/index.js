@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
 import { sessionLimiter } from "./middleware/rateLimiters.js";
+import { sanitizeRequest } from "./middleware/sanitize.js";
 import { connectDB, dbStatus } from "./config/db.js";
 import { verifyMailer, mailerStatus } from "./config/mailer.js";
 import authRoutes from "./routes/auth.js";
@@ -45,6 +46,10 @@ app.use(
 );
 
 app.use(express.json({ limit: "100kb" }));
+
+// Strip MongoDB operators from every request before any route can build a
+// query from them. Must sit after the body parser and before the routes.
+app.use(sanitizeRequest);
 
 app.get("/api/health", (req, res) => {
   res.json({

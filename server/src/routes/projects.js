@@ -3,14 +3,24 @@ import Project from "../models/Project.js";
 import Task from "../models/Task.js";
 import User from "../models/User.js";
 import Invitation from "../models/Invitation.js";
+import mongoose from "mongoose";
 import { requireAuth } from "../middleware/auth.js";
+import { asString } from "../middleware/sanitize.js";
 
 const router = Router();
 router.use(requireAuth);
 
 const MEMBER_FIELDS = "name email";
 
+const isValidId = (id) => mongoose.isValidObjectId(id);
+
 async function loadProject(req, res) {
+  // Reject a malformed id here rather than letting Mongoose throw a CastError
+  // that surfaces as a 500 — a bad id is a client mistake, not a server fault.
+  if (!isValidId(req.params.id)) {
+    res.status(400).json({ message: "Invalid project id" });
+    return null;
+  }
   const project = await Project.findById(req.params.id)
     .populate("owner", MEMBER_FIELDS)
     .populate("members", MEMBER_FIELDS);
@@ -79,6 +89,9 @@ router.get("/:id", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const project = await loadProject(req, res);
   if (!project) return;
+  if (project.owner._id.toString() !== req.userId) {
+    return res.status(403).json({ message: "Only the owner can edit this project" });
+  }
   const { name, description, color } = req.body;
   if (name !== undefined) project.name = name;
   if (description !== undefined) project.description = description;
@@ -113,7 +126,7 @@ router.post("/:id/members", async (req, res, next) => {
     const project = await loadProject(req, res);
     if (!project) return;
 
-    const email = (req.body.email || "").toLowerCase().trim();
+    const email = asString(req.body.email).toLowerCase().trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ message: "Please enter a valid email address" });
     }
@@ -156,12 +169,23 @@ router.post("/:id/members", async (req, res, next) => {
   }
 });
 
-// DELETE /api/projects/:id/members/:userId — remove a member, and clear any
-// pending invitation so the person isn't left with a stale notification.
+/*
+ * DELETE /api/projects/:id/members/:userId — remove a member.
+ *
+ * Previously any member could remove any other member. Now only the owner can
+ * remove someone else; a member may still remove themselves, which is how you
+ * leave a project you were invited to.
+ */
 router.delete("/:id/members/:userId", async (req, res, next) => {
   try {
     const project = await loadProject(req, res);
     if (!project) return;
+
+    const isOwner = project.owner._id.toString() === req.userId;
+    const isSelf = req.params.userId === req.userId;
+    if (!isOwner && !isSelf) {
+      return res.status(403).json({ message: "Only the project owner can remove other members" });
+    }
 
     project.members = project.members.filter((m) => m._id.toString() !== req.params.userId);
     await project.save();

@@ -7,6 +7,7 @@ import VerificationCode, { hashCode } from "../models/VerificationCode.js";
 import { requireAuth } from "../middleware/auth.js";
 import { loginLimiter, otpLimiter } from "../middleware/rateLimiters.js";
 import { sendMail, codeEmail } from "../config/mailer.js";
+import { asString } from "../middleware/sanitize.js";
 
 const router = Router();
 
@@ -80,9 +81,9 @@ async function deliverCode(res, { to, subject, title, intro, code, pendingDoc })
 // POST /api/auth/register — step 1: validate + email a verification code.
 router.post("/register", otpLimiter, async (req, res, next) => {
   try {
-    const name = (req.body.name || "").trim();
-    const email = (req.body.email || "").toLowerCase().trim();
-    const { password } = req.body;
+    const name = asString(req.body.name).trim();
+    const email = asString(req.body.email).toLowerCase().trim();
+    const password = asString(req.body.password);
 
     if (!name || !email || !password) {
       return res.status(400).json({ message: "Name, email and password are required" });
@@ -142,8 +143,8 @@ router.post("/register", otpLimiter, async (req, res, next) => {
 // POST /api/auth/register/verify — step 2: check the code, create the account.
 router.post("/register/verify", async (req, res, next) => {
   try {
-    const email = (req.body.email || "").toLowerCase().trim();
-    const code = (req.body.code || "").trim();
+    const email = asString(req.body.email).toLowerCase().trim();
+    const code = asString(req.body.code).trim();
     if (!email || !code) {
       return res.status(400).json({ message: "Email and code are required" });
     }
@@ -185,7 +186,7 @@ router.post("/register/verify", async (req, res, next) => {
 // POST /api/auth/register/resend — re-send the registration code.
 router.post("/register/resend", otpLimiter, async (req, res, next) => {
   try {
-    const email = (req.body.email || "").toLowerCase().trim();
+    const email = asString(req.body.email).toLowerCase().trim();
     const pending = await VerificationCode.findOne({ email, purpose: "register" });
     if (!pending) {
       return res.status(400).json({ message: "No pending registration found. Please sign up again." });
@@ -233,9 +234,10 @@ router.post("/register/resend", otpLimiter, async (req, res, next) => {
 
 router.post("/login", loginLimiter, async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email: (email || "").toLowerCase().trim() }).select("+password");
-    if (!user || !(await user.comparePassword(password || ""))) {
+    const email = asString(req.body.email).toLowerCase().trim();
+    const password = asString(req.body.password);
+    const user = await User.findOne({ email }).select("+password");
+    if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
     res.json({ token: signToken(user._id), user: publicUser(user) });
@@ -259,7 +261,7 @@ router.post("/login", loginLimiter, async (req, res, next) => {
  */
 router.post("/forgot-password", otpLimiter, async (req, res, next) => {
   try {
-    const email = (req.body.email || "").toLowerCase().trim();
+    const email = asString(req.body.email).toLowerCase().trim();
     if (!email) {
       return res.status(400).json({ message: "Please enter your email address" });
     }
@@ -315,9 +317,9 @@ router.post("/forgot-password", otpLimiter, async (req, res, next) => {
 // POST /api/auth/reset-password — verify the code and set a new password.
 router.post("/reset-password", async (req, res, next) => {
   try {
-    const email = (req.body.email || "").toLowerCase().trim();
-    const code = (req.body.code || "").trim();
-    const { password } = req.body;
+    const email = asString(req.body.email).toLowerCase().trim();
+    const code = asString(req.body.code).trim();
+    const password = asString(req.body.password);
 
     if (!email || !code || !password) {
       return res.status(400).json({ message: "Email, code and new password are required" });

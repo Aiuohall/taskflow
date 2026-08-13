@@ -6,6 +6,46 @@
 
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
+  /* Stop the rubber-band bounce past the top/bottom of the app, which on
+     mobile makes a fixed-height layout feel broken rather than native. */
+  overscroll-behavior-y: none;
+}
+
+/* Keep content clear of the notch and the home indicator. Harmless on
+   devices without them, where every env() value resolves to 0. */
+@supports (padding: env(safe-area-inset-left)) {
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/*
+ * iOS Safari zooms the whole page when a focused input has a font-size below
+ * 16px, and never zooms back out — which made every form on this app jump on
+ * tap. The UI is designed at 14px, so bump only the inputs, and only on
+ * touch-primary devices so the desktop design is untouched.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Remove the grey flash Android draws over tapped elements — it fires on
+   every card and button and reads as a rendering glitch. */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Momentum scrolling for the horizontally-scrolling kanban columns. */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
 
 ::-webkit-scrollbar {

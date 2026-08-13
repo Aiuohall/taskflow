@@ -1,10 +1,28 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import Task, { TASK_STATUSES } from "../models/Task.js";
 import Project from "../models/Project.js";
 import { requireAuth } from "../middleware/auth.js";
+import { asString } from "../middleware/sanitize.js";
 
 const router = Router();
 router.use(requireAuth);
+
+const isValidId = (id) => mongoose.isValidObjectId(id);
+
+/**
+ * Resolve the assignee for a task.
+ *
+ * `assignee` used to be written straight from the request body, so any id at
+ * all could be attached to a task — and because the response populates the
+ * assignee with name and email, that turned task creation into a lookup for
+ * other people's details. An assignee must be someone already on the project.
+ */
+function resolveAssignee(assignee, project) {
+  if (assignee === null || assignee === undefined || assignee === "") return null;
+  if (!isValidId(assignee)) return undefined; // signals "reject the request"
+  return project.hasAccess(assignee) ? assignee : undefined;
+}
 
 const POPULATE = [
   { path: "assignee", select: "name email" },
@@ -13,6 +31,10 @@ const POPULATE = [
 ];
 
 async function assertProjectAccess(projectId, userId, res) {
+  if (!isValidId(projectId)) {
+    res.status(400).json({ message: "Invalid project id" });
+    return null;
+  }
   const project = await Project.findById(projectId);
   if (!project) {
     res.status(404).json({ message: "Project not found" });
@@ -26,6 +48,10 @@ async function assertProjectAccess(projectId, userId, res) {
 }
 
 async function loadTask(req, res) {
+  if (!isValidId(req.params.id)) {
+    res.status(400).json({ message: "Invalid task id" });
+    return null;
+  }
   const task = await Task.findById(req.params.id).populate(POPULATE);
   if (!task) {
     res.status(404).json({ message: "Task not found" });
@@ -58,7 +84,13 @@ router.post("/", async (req, res) => {
   if (!projectId || !title) {
     return res.status(400).json({ message: "project and title are required" });
   }
-  if (!(await assertProjectAccess(projectId, req.userId, res))) return;
+  const project = await assertProjectAccess(projectId, req.userId, res);
+  if (!project) return;
+
+  const resolvedAssignee = resolveAssignee(assignee, project);
+  if (resolvedAssignee === undefined) {
+    return res.status(400).json({ message: "Assignee must be a member of this project" });
+  }
 
   const task = new Task({
     project: projectId,
@@ -66,7 +98,7 @@ router.post("/", async (req, res) => {
     description,
     priority,
     dueDate: dueDate || null,
-    assignee: assignee || null,
+    assignee: resolvedAssignee,
     labels: labels || [],
     createdBy: req.userId,
   });
@@ -86,7 +118,14 @@ router.put("/:id", async (req, res) => {
   if (description !== undefined) task.description = description;
   if (priority !== undefined) task.priority = priority;
   if (dueDate !== undefined) task.dueDate = dueDate || null;
-  if (assignee !== undefined) task.assignee = assignee || null;
+  if (assignee !== undefined) {
+    const project = await Project.findById(task.project);
+    const resolved = resolveAssignee(assignee, project);
+    if (resolved === undefined) {
+      return res.status(400).json({ message: "Assignee must be a member of this project" });
+    }
+    task.assignee = resolved;
+  }
   if (labels !== undefined) task.labels = labels;
   if (status !== undefined && TASK_STATUSES.includes(status)) applyStatus(task, status);
 
@@ -123,7 +162,7 @@ router.post("/:id/comments", async (req, res) => {
   const task = await loadTask(req, res);
   if (!task) return;
 
-  const text = (req.body.text || "").trim();
+  const text = asString(req.body.text).trim();
   if (!text) return res.status(400).json({ message: "Comment text is required" });
 
   task.comments.push({ user: req.userId, text });

@@ -3,7 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDraggable,
@@ -94,14 +95,14 @@ function Column({ column, tasks, onAdd, onTaskClick }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
 
   return (
-    <div className="flex w-72 shrink-0 flex-col">
+    <div className="flex w-[85vw] max-w-xs shrink-0 snap-start flex-col sm:w-72">
       <div className="mb-3 flex items-center gap-2 px-1">
         <span className={`h-2 w-2 rounded-full ${column.dot}`} />
         <h3 className="text-sm font-semibold">{column.label}</h3>
         <span className="text-xs text-slate-500">{tasks.length}</span>
         <button
           onClick={() => onAdd(column.id)}
-          className="ml-auto rounded-md p-1 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+          className="ml-auto flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300 md:h-7 md:w-7"
           title={`Add task to ${column.label}`}
         >
           <Plus size={16} />
@@ -135,8 +136,24 @@ export default function Board() {
   const [memberError, setMemberError] = useState("");
   const [memberInfo, setMemberInfo] = useState("");
 
+  /*
+   * Separate mouse and touch sensors rather than one PointerSensor.
+   *
+   * A single pointer sensor can't tell a drag from a scroll on a touch screen:
+   * any swipe that starts on a card either drags the card or scrolls the
+   * board, and whichever it picks is wrong half the time. Splitting them lets
+   * each input use the right gesture — mouse drags immediately after a few
+   * pixels of movement, while touch requires a short press-and-hold, leaving
+   * ordinary swipes free to scroll the columns.
+   */
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, {
+      // 220ms is long enough not to trigger on a scroll flick, short enough
+      // not to feel unresponsive. tolerance allows a little finger drift
+      // during the hold without cancelling the drag.
+      activationConstraint: { delay: 220, tolerance: 8 },
+    })
   );
 
   const load = async () => {
@@ -248,7 +265,11 @@ export default function Board() {
       </div>
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="mt-6 flex flex-1 gap-4 overflow-x-auto pb-4">
+        <p className="mt-4 text-xs text-slate-500 md:hidden">
+          Swipe to see more columns · press and hold a card to move it
+        </p>
+
+        <div className="touch-scroll mt-3 flex flex-1 snap-x snap-mandatory gap-4 overflow-x-auto pb-4 md:mt-6 md:snap-none">
           {COLUMNS.map((col) => (
             <Column
               key={col.id}
