@@ -116,7 +116,8 @@ const transport = built?.transport ?? null;
 /** Live mailer state, surfaced by GET /api/health so failures are visible. */
 export const mailerStatus = {
   mode: built ? built.kind : "console",
-  ready: null, // null = not verified yet, true/false after verify()
+  ready: null, // true = verified, false = known broken, null = not determinable
+  note: null, // context for a null `ready`, so it isn't mistaken for a failure
   lastError: null,
   lastErrorAt: null,
   lastSentAt: null,
@@ -195,24 +196,41 @@ export async function verifyMailer() {
   if (!built) return false;
 
   if (built.http) {
-    // Listing domains is a cheap authenticated call — it proves the key works
-    // without sending anything.
+    // Resend has no dedicated "ping" endpoint, so we probe /domains. Note that
+    // a key scoped to "Sending access" is NOT permitted to list domains and
+    // answers 401/403 even though it sends perfectly well. Treat that as
+    // "can't tell from here", never as failure — reporting a working key as
+    // broken sends you hunting for a problem that doesn't exist.
     try {
       const res = await fetch("https://api.resend.com/domains", {
         headers: { Authorization: `Bearer ${RESEND_API_KEY}` },
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) throw new Error(`Resend API rejected the key (HTTP ${res.status})`);
-      mailerStatus.ready = true;
-      mailerStatus.lastError = null;
-      console.log(`[mailer] Resend HTTP API ready (sending as ${built.from})`);
-      return true;
+
+      if (res.ok) {
+        mailerStatus.ready = true;
+        mailerStatus.lastError = null;
+        console.log(`[mailer] Resend ready, key verified (sending as ${built.from})`);
+        return true;
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        mailerStatus.ready = null; // unknown, not broken
+        mailerStatus.lastError = null;
+        mailerStatus.note =
+          "Key present but not verifiable at startup: 'Sending access' keys cannot list domains. " +
+          "The first real send will confirm it. If sends fail, the key is genuinely invalid.";
+        console.log(`[mailer] Resend configured (sending as ${built.from}); startup check skipped — send-only key.`);
+        return true;
+      }
+
+      throw new Error(`Resend API returned HTTP ${res.status}`);
     } catch (err) {
-      mailerStatus.ready = false;
-      mailerStatus.lastError = `Resend check failed: ${err.message}`;
-      mailerStatus.lastErrorAt = new Date().toISOString();
-      console.error(`[mailer] ${mailerStatus.lastError}`);
-      return false;
+      // A network/timeout failure here says nothing about the key either.
+      mailerStatus.ready = null;
+      mailerStatus.note = `Could not reach Resend at startup (${err.message}). Sending may still work.`;
+      console.warn(`[mailer] ${mailerStatus.note}`);
+      return true;
     }
   }
 

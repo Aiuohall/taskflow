@@ -55,6 +55,7 @@ app.get("/api/health", (req, res) => {
     mail: {
       mode: mailerStatus.mode,
       ready: mailerStatus.ready,
+      note: mailerStatus.note,
       sent: mailerStatus.sent,
       failed: mailerStatus.failed,
       lastSentAt: mailerStatus.lastSentAt,
