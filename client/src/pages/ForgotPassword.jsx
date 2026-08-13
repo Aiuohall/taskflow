@@ -26,7 +26,7 @@ export default function ForgotPassword() {
       setStep("reset");
       setInfo(`If an account exists for ${email}, a 6-digit code is on its way.`);
     } catch (err) {
-      setError(err.response?.data?.message || "Something went wrong");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -40,7 +40,7 @@ export default function ForgotPassword() {
       await resetPassword(email, code, password);
       navigate("/"); // resetPassword logs the user in on success
     } catch (err) {
-      setError(err.response?.data?.message || "Could not reset password");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Could not reset password");
     } finally {
       setBusy(false);
     }

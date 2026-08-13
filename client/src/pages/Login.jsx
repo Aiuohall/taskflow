@@ -19,7 +19,7 @@ export default function Login() {
       await login(form.email, form.password);
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Login failed");
     } finally {
       setBusy(false);
     }
@@ -32,7 +32,7 @@ export default function Login() {
       await demoLogin();
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Could not start demo");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Could not start demo");
       setDemoBusy(false);
     }
   };

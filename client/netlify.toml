@@ -1,0 +1,38 @@
+# Netlify build + caching config.
+# Netlify reads this from the site's base directory — set "Base directory" to
+# `client` and "Publish directory" to `client/dist` in the site settings.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback so deep links like /projects/abc123 don't 404 on refresh.
+# (Mirrors public/_redirects; keeping both is harmless.)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Vite fingerprints every file in /assets, so the content can never change
+# behind a given URL — cache it forever and skip the revalidation round-trip
+# on repeat visits.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# index.html must always be revalidated, otherwise a deploy won't be picked up
+# until the browser cache expires.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

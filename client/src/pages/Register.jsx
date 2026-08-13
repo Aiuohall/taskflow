@@ -25,7 +25,7 @@ export default function Register() {
       setStep("verify");
       setInfo(`We sent a 6-digit code to ${form.email}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Registration failed");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Registration failed");
     } finally {
       setBusy(false);
     }
@@ -39,7 +39,7 @@ export default function Register() {
       await verifyRegistration(form.email, code);
       navigate("/");
     } catch (err) {
-      setError(err.response?.data?.message || "Verification failed");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Verification failed");
     } finally {
       setBusy(false);
     }
@@ -52,7 +52,7 @@ export default function Register() {
       await resendCode(form.email);
       setInfo("A new code has been sent.");
     } catch (err) {
-      setError(err.response?.data?.message || "Could not resend code");
+      setError(err.response?.data?.message || err.userMessage || err.message || "Could not resend code");
     }
   };
 
