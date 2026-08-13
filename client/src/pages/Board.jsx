@@ -133,6 +133,7 @@ export default function Board() {
   const [showMembers, setShowMembers] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState("");
+  const [memberInfo, setMemberInfo] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -178,15 +179,21 @@ export default function Board() {
     }
   };
 
+  // Inviting no longer adds the person directly — it queues an invitation they
+  // have to accept, so the response is a confirmation rather than the updated
+  // project. The member list only changes once they say yes.
   const handleAddMember = async (e) => {
     e.preventDefault();
     setMemberError("");
+    setMemberInfo("");
     try {
       const res = await api.post(`/projects/${id}/members`, { email: memberEmail });
-      setProject(res.data);
+      setMemberInfo(res.data.message);
       setMemberEmail("");
     } catch (err) {
-      setMemberError(err.response?.data?.message || "Could not add member");
+      setMemberError(
+        err.response?.data?.message || err.userMessage || "Could not send the invitation"
+      );
     }
   };
 
@@ -297,6 +304,9 @@ export default function Board() {
               ))}
             </div>
             <form onSubmit={handleAddMember} className="mt-4">
+              {memberInfo && (
+                <p className="mb-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">{memberInfo}</p>
+              )}
               {memberError && (
                 <p className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{memberError}</p>
               )}
@@ -313,11 +323,12 @@ export default function Board() {
                   type="submit"
                   className="rounded-lg bg-indigo-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
                 >
-                  Add
+                  Invite
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                The person must already have a TaskFlow account.
+                They must already have a TaskFlow account, and they'll appear here once
+                they accept the invitation.
               </p>
             </form>
           </div>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { KeyRound, ArrowLeft } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import PasswordInput from "../components/PasswordInput";
 
 const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm outline-none transition-colors focus:border-indigo-500";
@@ -97,7 +98,7 @@ export default function ForgotPassword() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-300">New password</label>
-              <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} placeholder="At least 6 characters" />
+              <PasswordInput required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} placeholder="At least 6 characters" />
             </div>
             <button type="submit" disabled={busy || code.length !== 6} className="w-full rounded-lg bg-indigo-500 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-400 disabled:opacity-50">
               {busy ? "Resetting..." : "Reset password"}

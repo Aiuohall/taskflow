@@ -53,11 +53,6 @@ export function AuthProvider({ children }) {
     handleAuth(res.data);
   };
 
-  const demoLogin = async () => {
-    const res = await api.post("/auth/demo");
-    handleAuth(res.data);
-  };
-
   const logout = () => {
     localStorage.removeItem("taskflow_token");
     setUser(null);
@@ -74,7 +69,6 @@ export function AuthProvider({ children }) {
         resendCode,
         forgotPassword,
         resetPassword,
-        demoLogin,
         logout,
       }}
     >

@@ -2,6 +2,7 @@ import { Router } from "express";
 import Project from "../models/Project.js";
 import Task from "../models/Task.js";
 import User from "../models/User.js";
+import Invitation from "../models/Invitation.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -94,37 +95,79 @@ router.delete("/:id", async (req, res) => {
     return res.status(403).json({ message: "Only the owner can delete a project" });
   }
   await Task.deleteMany({ project: project._id });
+  await Invitation.deleteMany({ project: project._id });
   await project.deleteOne();
   res.json({ message: "Project deleted" });
 });
 
-// POST /api/projects/:id/members — add a member by email
-router.post("/:id/members", async (req, res) => {
-  const project = await loadProject(req, res);
-  if (!project) return;
+/*
+ * POST /api/projects/:id/members — invite someone by email.
+ *
+ * This used to add the person to `members` immediately, meaning anyone could
+ * put you on their project without your knowledge or consent. It now creates a
+ * pending invitation; the invited person accepts or rejects it themselves, and
+ * membership is only granted on acceptance.
+ */
+router.post("/:id/members", async (req, res, next) => {
+  try {
+    const project = await loadProject(req, res);
+    if (!project) return;
 
-  const user = await User.findOne({ email: (req.body.email || "").toLowerCase() });
-  if (!user) {
-    return res.status(404).json({ message: "No user found with that email" });
+    const email = (req.body.email || "").toLowerCase().trim();
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "No user found with that email" });
+    }
+    if (project.hasAccess(user._id)) {
+      return res.status(409).json({ message: "That user is already on this project" });
+    }
+    if (user._id.toString() === req.userId) {
+      return res.status(400).json({ message: "You're already on this project" });
+    }
+
+    const existing = await Invitation.findOne({
+      project: project._id,
+      invitedUser: user._id,
+      status: "pending",
+    });
+    if (existing) {
+      return res.status(409).json({ message: "They already have a pending invitation" });
+    }
+
+    await Invitation.create({
+      project: project._id,
+      invitedUser: user._id,
+      invitedBy: req.userId,
+    });
+
+    res.status(201).json({
+      message: `Invitation sent to ${user.name}. They'll join once they accept.`,
+      invited: { name: user.name, email: user.email },
+    });
+  } catch (err) {
+    next(err);
   }
-  if (project.hasAccess(user._id)) {
-    return res.status(409).json({ message: "That user is already on this project" });
-  }
-  project.members.push(user._id);
-  await project.save();
-  await project.populate("members", MEMBER_FIELDS);
-  res.json(project);
 });
 
-// DELETE /api/projects/:id/members/:userId
-router.delete("/:id/members/:userId", async (req, res) => {
-  const project = await loadProject(req, res);
-  if (!project) return;
-  project.members = project.members.filter(
-    (m) => m._id.toString() !== req.params.userId
-  );
-  await project.save();
-  res.json(project);
+// DELETE /api/projects/:id/members/:userId — remove a member, and clear any
+// pending invitation so the person isn't left with a stale notification.
+router.delete("/:id/members/:userId", async (req, res, next) => {
+  try {
+    const project = await loadProject(req, res);
+    if (!project) return;
+
+    project.members = project.members.filter((m) => m._id.toString() !== req.params.userId);
+    await project.save();
+    await Invitation.deleteMany({
+      project: project._id,
+      invitedUser: req.params.userId,
+      status: "pending",
+    });
+
+    res.json(project);
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

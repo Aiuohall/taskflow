@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, FolderKanban, LogOut, CheckSquare, Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import InvitationBell from "./InvitationBell";
 import { useEffect } from "react";
 
 const navItems = [
@@ -99,20 +100,27 @@ export default function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile top bar with hamburger — hidden on desktop */}
-        <header className="flex items-center gap-3 border-b border-slate-800 bg-slate-900/60 px-4 py-3 md:hidden">
+        {/* Top bar. On desktop it exists only to host the notification bell,
+            so it stays slim and borderless-looking against the page. */}
+        <header className="flex items-center gap-3 border-b border-slate-800 bg-slate-900/60 px-4 py-3">
           <button
             onClick={() => setOpen(true)}
-            className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-800"
+            className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-800 md:hidden"
             aria-label="Open menu"
           >
             <Menu size={22} />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 md:hidden">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500">
               <CheckSquare size={15} className="text-white" />
             </div>
             <span className="font-bold tracking-tight">TaskFlow</span>
+          </div>
+
+          <div className="ml-auto">
+            {/* Accepting an invite adds a project, so bounce the user to the
+                projects list where the new one is now visible. */}
+            <InvitationBell onAccepted={() => navigate("/projects")} />
           </div>
         </header>
 

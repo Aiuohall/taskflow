@@ -3,8 +3,6 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import User from "../models/User.js";
-import Project from "../models/Project.js";
-import Task from "../models/Task.js";
 import VerificationCode, { hashCode } from "../models/VerificationCode.js";
 import { requireAuth } from "../middleware/auth.js";
 import { loginLimiter, otpLimiter } from "../middleware/rateLimiters.js";
@@ -339,44 +337,6 @@ router.post("/reset-password", async (req, res, next) => {
     await pending.deleteOne();
 
     res.json({ token: signToken(user._id), user: publicUser(user) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ─────────────────────────── Demo login ───────────────────────────────
-
-// POST /api/auth/demo — create a throwaway guest account seeded with a sample
-// project so recruiters can explore instantly. Each click = a fresh, isolated
-// account, so visitors never collide with each other.
-router.post("/demo", async (req, res, next) => {
-  try {
-    const id = Date.now().toString(36) + crypto.randomBytes(3).toString("hex");
-    const user = await User.create({
-      name: "Guest User",
-      email: `guest-${id}@demo.taskflow`,
-      password: crypto.randomBytes(12).toString("hex") + "A1",
-    });
-
-    const project = await Project.create({
-      name: "Welcome to TaskFlow 👋",
-      description: "A sample project — drag cards between columns, open one to edit it, or create your own project.",
-      color: "#6366f1",
-      owner: user._id,
-      members: [],
-    });
-
-    const now = Date.now();
-    const day = 86400000;
-    await Task.insertMany([
-      { project: project._id, title: "Drag me to another column →", status: "todo", priority: "high", createdBy: user._id, labels: ["demo"], dueDate: new Date(now + 2 * day) },
-      { project: project._id, title: "Click a card to edit details & add comments", status: "todo", priority: "medium", createdBy: user._id },
-      { project: project._id, title: "Set priorities, due dates and assignees", status: "in-progress", priority: "medium", createdBy: user._id, dueDate: new Date(now + 5 * day) },
-      { project: project._id, title: "Invite teammates by email", status: "review", priority: "low", createdBy: user._id },
-      { project: project._id, title: "Create your own project", status: "done", priority: "low", createdBy: user._id, completedAt: new Date() },
-    ]);
-
-    res.status(201).json({ token: signToken(user._id), user: publicUser(user) });
   } catch (err) {
     next(err);
   }

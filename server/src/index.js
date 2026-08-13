@@ -10,6 +10,7 @@ import authRoutes from "./routes/auth.js";
 import projectRoutes from "./routes/projects.js";
 import taskRoutes from "./routes/tasks.js";
 import dashboardRoutes from "./routes/dashboard.js";
+import invitationRoutes from "./routes/invitations.js";
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use("/api/auth", sessionLimiter, authRoutes);
 app.use("/api/projects", sessionLimiter, projectRoutes);
 app.use("/api/tasks", sessionLimiter, taskRoutes);
 app.use("/api/dashboard", sessionLimiter, dashboardRoutes);
+app.use("/api/invitations", sessionLimiter, invitationRoutes);
 
 // Centralized error fallback — log the detail, return a generic message so
 // internal errors aren't leaked to the client.
