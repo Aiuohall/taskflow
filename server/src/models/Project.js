@@ -11,6 +11,11 @@ const projectSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every project listing filters on { $or: [{ owner }, { members }] }; without
+// these it's a full collection scan on each dashboard and projects-page load.
+projectSchema.index({ owner: 1, updatedAt: -1 });
+projectSchema.index({ members: 1 });
+
 // True when the given user owns the project or is a member.
 // Works whether owner/members are raw ObjectIds or populated documents.
 projectSchema.methods.hasAccess = function (userId) {

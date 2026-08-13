@@ -33,4 +33,11 @@ const taskSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Board queries filter by project and group by status; the dashboard sorts by
+// recency and scans due/completion dates across every project the user can see.
+taskSchema.index({ project: 1, status: 1 });
+taskSchema.index({ project: 1, updatedAt: -1 });
+taskSchema.index({ project: 1, dueDate: 1 });
+taskSchema.index({ project: 1, completedAt: -1 });
+
 export default mongoose.model("Task", taskSchema);

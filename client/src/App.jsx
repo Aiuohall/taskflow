@@ -1,45 +1,72 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
+import WakeBanner from "./components/WakeBanner";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPassword from "./pages/ForgotPassword";
-import Dashboard from "./pages/Dashboard";
-import Projects from "./pages/Projects";
-import Board from "./pages/Board";
+
+/*
+ * Everything past the login screen is loaded on demand.
+ *
+ * The whole app used to ship as one 723 KB bundle, so a visitor landing on
+ * /login downloaded Recharts (~400 KB) and dnd-kit before they could type an
+ * email. Splitting at the route boundary means the first paint only pays for
+ * the screen actually being shown; the rest streams in behind it.
+ */
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Projects = lazy(() => import("./pages/Projects"));
+const Board = lazy(() => import("./pages/Board"));
+
+function Spinner() {
+  return (
+    <div className="flex h-screen items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+    </div>
+  );
+}
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
   if (!user) return <Navigate to="/login" replace />;
   return children;
 }
 
+// Warm the chunks for the screens a signed-in user hits first, once the
+// browser is idle. By the time they finish logging in, the code is cached.
+if (typeof window !== "undefined") {
+  const warm = () => {
+    import("./pages/Dashboard");
+    import("./pages/Projects");
+  };
+  if ("requestIdleCallback" in window) window.requestIdleCallback(warm, { timeout: 3000 });
+  else setTimeout(warm, 2000);
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route
-        path="/"
-        element={
-          <Protected>
-            <Layout />
-          </Protected>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="projects" element={<Projects />} />
-        <Route path="projects/:id" element={<Board />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={<Spinner />}>
+      <WakeBanner />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route
+          path="/"
+          element={
+            <Protected>
+              <Layout />
+            </Protected>
+          }
+        >
+          <Route index element={<Dashboard />} />
+          <Route path="projects" element={<Projects />} />
+          <Route path="projects/:id" element={<Board />} />
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

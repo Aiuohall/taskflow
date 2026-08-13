@@ -4,3 +4,9 @@ server/data/
 server/.env
 *.log
 .DS_Store
+
+# Never commit credentials
+*password*.txt
+.env
+.env.*
+!.env.example
