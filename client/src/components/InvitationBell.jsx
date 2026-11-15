@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, Check, X, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from "../api";
 
 /**
@@ -10,10 +11,13 @@ import api from "../api";
  * API sleeps on a free tier and a dropped socket would be worse than a
  * 60-second delay on a notification.
  */
-const POLL_MS = 60000;
+const POLL_MS = 20000;
 
 export default function InvitationBell({ onAccepted }) {
   const [invitations, setInvitations] = useState([]);
+  const [unread, setUnread] = useState([]); // unread group-chat counts per project
+  const navigate = useNavigate();
+  const lastTotal = useRef(0);
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const [toast, setToast] = useState("");
@@ -27,11 +31,35 @@ export default function InvitationBell({ onAccepted }) {
       .catch(() => {});
   }, []);
 
+  const loadUnread = useCallback(() => {
+    api
+      .get("/chat/unread")
+      .then((res) => {
+        setUnread(res.data);
+        const total = res.data.reduce((n, u) => n + u.count, 0);
+        // Browser notification only when the count grows and the tab is hidden.
+        if (
+          total > lastTotal.current &&
+          document.hidden &&
+          "Notification" in window &&
+          Notification.permission === "granted"
+        ) {
+          new Notification("TaskFlow", { body: `${total} unread chat message${total === 1 ? "" : "s"}` });
+        }
+        lastTotal.current = total;
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     load();
-    const id = setInterval(load, POLL_MS);
+    loadUnread();
+    const id = setInterval(() => {
+      load();
+      loadUnread();
+    }, POLL_MS);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, loadUnread]);
 
   // Close when clicking outside or pressing Escape.
   useEffect(() => {
@@ -65,13 +93,21 @@ export default function InvitationBell({ onAccepted }) {
     }
   };
 
-  const count = invitations.length;
+  const chatCount = unread.reduce((n, u) => n + u.count, 0);
+  const count = invitations.length + chatCount;
+
+  const toggle = () => {
+    setOpen((o) => !o);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  };
 
   return (
     <>
       <div className="relative" ref={panelRef}>
         <button
-          onClick={() => setOpen((o) => !o)}
+          onClick={toggle}
           aria-label={count ? `${count} pending invitation${count === 1 ? "" : "s"}` : "Notifications"}
           className="relative rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"
         >
@@ -86,12 +122,37 @@ export default function InvitationBell({ onAccepted }) {
         {open && (
           <div className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
             <div className="border-b border-slate-800 px-4 py-3">
-              <p className="text-sm font-semibold">Project invitations</p>
+              <p className="text-sm font-semibold">Notifications</p>
             </div>
 
-            {count === 0 ? (
+            {unread.length > 0 && (
+              <ul className="divide-y divide-slate-800 border-b border-slate-800">
+                {unread.map((u) => (
+                  <li key={u.project._id}>
+                    <button
+                      onClick={() => {
+                        setOpen(false);
+                        navigate(`/projects/${u.project._id}`);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-slate-800/60"
+                    >
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: u.project.color || "#6366f1" }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {u.count} new message{u.count === 1 ? "" : "s"} in{" "}
+                        <span className="font-medium">{u.project.name}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {invitations.length === 0 && unread.length > 0 ? null : count === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-slate-500">
-                No pending invitations
+                You're all caught up
               </p>
             ) : (
               <ul className="max-h-96 divide-y divide-slate-800 overflow-y-auto">

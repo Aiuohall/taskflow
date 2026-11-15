@@ -26,6 +26,14 @@ export const sessionLimiter = rateLimit({
   message: { message: "Too many requests. Please slow down." },
 });
 
+/** Chat polls every few seconds while open, so it needs its own, larger budget. */
+export const chatLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  max: 1500,
+  message: { message: "Too many requests. Please slow down." },
+});
+
 /** Password guessing. Successful sign-ins don't count toward the cap. */
 export const loginLimiter = rateLimit({
   ...common,

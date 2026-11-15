@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
-import { sessionLimiter } from "./middleware/rateLimiters.js";
+import { sessionLimiter, chatLimiter } from "./middleware/rateLimiters.js";
 import { sanitizeRequest } from "./middleware/sanitize.js";
 import { connectDB, dbStatus } from "./config/db.js";
 import { verifyMailer, mailerStatus } from "./config/mailer.js";
@@ -12,6 +12,7 @@ import projectRoutes from "./routes/projects.js";
 import taskRoutes from "./routes/tasks.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import invitationRoutes from "./routes/invitations.js";
+import chatRoutes from "./routes/chat.js";
 
 const app = express();
 
@@ -76,6 +77,7 @@ app.use("/api/projects", sessionLimiter, projectRoutes);
 app.use("/api/tasks", sessionLimiter, taskRoutes);
 app.use("/api/dashboard", sessionLimiter, dashboardRoutes);
 app.use("/api/invitations", sessionLimiter, invitationRoutes);
+app.use("/api/chat", chatLimiter, chatRoutes);
 
 // Centralized error fallback — log the detail, return a generic message so
 // internal errors aren't leaked to the client.

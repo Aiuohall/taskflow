@@ -13,6 +13,7 @@ import {
 import { ArrowLeft, Plus, UserPlus, X, Calendar, MessageSquare } from "lucide-react";
 import api from "../api";
 import TaskModal from "../components/TaskModal";
+import ChatPanel from "../components/ChatPanel";
 
 const COLUMNS = [
   { id: "todo", label: "To Do", dot: "bg-slate-400" },
@@ -132,6 +133,7 @@ export default function Board() {
   const [activeTask, setActiveTask] = useState(null);
   const [modal, setModal] = useState(null); // { task } or { status } for new
   const [showMembers, setShowMembers] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState("");
   const [memberInfo, setMemberInfo] = useState("");
@@ -249,6 +251,13 @@ export default function Board() {
           ))}
         </div>
         <button
+          onClick={() => setShowChat(true)}
+          className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
+        >
+          <MessageSquare size={15} />
+          Chat
+        </button>
+        <button
           onClick={() => setShowMembers(true)}
           className="flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
         >
@@ -296,6 +305,8 @@ export default function Board() {
           }}
         />
       )}
+
+      {showChat && <ChatPanel projectId={id} onClose={() => setShowChat(false)} />}
 
       {showMembers && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
