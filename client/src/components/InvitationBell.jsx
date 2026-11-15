@@ -17,6 +17,8 @@ export default function InvitationBell({ onAccepted }) {
   const [invitations, setInvitations] = useState([]);
   const [unread, setUnread] = useState([]); // unread group-chat counts per project
   const navigate = useNavigate();
+  const navRef = useRef(navigate); // keeps the poll callback stable across route changes
+  navRef.current = navigate;
   const lastTotal = useRef(0);
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
@@ -44,7 +46,14 @@ export default function InvitationBell({ onAccepted }) {
           "Notification" in window &&
           Notification.permission === "granted"
         ) {
-          new Notification("TaskFlow", { body: `${total} unread chat message${total === 1 ? "" : "s"}` });
+          const n = new Notification("TaskFlow", { body: `${total} unread chat message${total === 1 ? "" : "s"}` });
+          // Clicking the system notification brings the tab forward and opens the chat.
+          const firstId = res.data[0]?.project?._id;
+          n.onclick = () => {
+            window.focus();
+            if (firstId) navRef.current(`/projects/${firstId}?chat=1`);
+            n.close();
+          };
         }
         lastTotal.current = total;
       })
@@ -132,7 +141,7 @@ export default function InvitationBell({ onAccepted }) {
                     <button
                       onClick={() => {
                         setOpen(false);
-                        navigate(`/projects/${u.project._id}`);
+                        navigate(`/projects/${u.project._id}?chat=1`); // opens the chat on arrival
                       }}
                       className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-slate-800/60"
                     >

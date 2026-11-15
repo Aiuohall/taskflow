@@ -96,7 +96,10 @@ connectDB()
     // Not awaited: a slow or broken SMTP host must not delay the server
     // accepting traffic. The result lands in the log and in /api/health.
     verifyMailer();
-    app.listen(PORT, () => console.log(`TaskFlow API running on http://localhost:${PORT}`));
+    const server = app.listen(PORT, () => console.log(`TaskFlow API running on http://localhost:${PORT}`));
+    // Node's default 5-minute request timeout would cut off a large chat upload
+    // on a slow connection. Allow up to an hour for the request body.
+    server.requestTimeout = 60 * 60 * 1000;
   })
   .catch((err) => {
     console.error("Failed to connect to database:", err.message);

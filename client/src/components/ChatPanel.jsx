@@ -1,7 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X, Send } from "lucide-react";
+import { X, Send, Paperclip, Download, File as FileIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import api from "../api";
+
+// Any file type may be attached. The server enforces the real cap (never below
+// 1 GB); this only lets the UI refuse early. Raise it with VITE_MAX_UPLOAD_MB.
+const MAX_UPLOAD_MB = Math.max(1024, Number(import.meta.env.VITE_MAX_UPLOAD_MB) || 1024);
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+
+function formatSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let n = bytes / 1024;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+}
 
 /**
  * Group chat for one project. Only owner/members can load or post (enforced
@@ -16,8 +33,11 @@ export default function ChatPanel({ projectId, onClose }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [upload, setUpload] = useState(null); // { name, size, pct } while a file is uploading
   const endRef = useRef(null);
   const lastRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const abortRef = useRef(null);
 
   const markRead = useCallback(() => {
     api.post(`/chat/${projectId}/read`).catch(() => {});
@@ -70,6 +90,61 @@ export default function ChatPanel({ projectId, onClose }) {
     }
   };
 
+  const attach = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets the same file be picked again later
+    if (!file || upload) return;
+    if (file.size === 0) return setError("That file is empty");
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return setError(`"${file.name}" is ${formatSize(file.size)}. The limit is ${formatSize(MAX_UPLOAD_BYTES)}.`);
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setError("");
+    setUpload({ name: file.name, size: file.size, pct: 0 });
+    try {
+      // Raw bytes as the body (the server streams them to storage); metadata rides in headers.
+      const res = await api.post(`/chat/${projectId}/upload`, file, {
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Filename": encodeURIComponent(file.name),
+          "X-Filetype": file.type || "application/octet-stream",
+          "X-Caption": encodeURIComponent(text.trim().slice(0, 2000)),
+        },
+        timeout: 0, // a large file legitimately takes minutes
+        signal: controller.signal,
+        onUploadProgress: (p) =>
+          setUpload((u) => u && { ...u, pct: p.total ? Math.round((p.loaded / p.total) * 100) : 0 }),
+      });
+      lastRef.current = res.data.createdAt;
+      setMessages((cur) => (cur.some((m) => m._id === res.data._id) ? cur : [...cur, res.data]));
+      setText("");
+    } catch (err) {
+      if (err.code !== "ERR_CANCELED") {
+        setError(err.response?.data?.message || err.userMessage || "Upload failed");
+      }
+    } finally {
+      abortRef.current = null;
+      setUpload(null);
+    }
+  };
+
+  const download = async (m) => {
+    try {
+      // A short-lived signed link lets the browser stream the file straight to
+      // disk, which a multi-GB file needs (an in-memory blob would not fit).
+      const { data } = await api.post(`/chat/${projectId}/files/${m.attachment.fileId}/link`);
+      const a = document.createElement("a");
+      a.href = `${api.defaults.baseURL}${data.path}`;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      setError(err.response?.data?.message || err.userMessage || "Could not start the download");
+    }
+  };
+
   return (
     <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-slate-800 bg-slate-900 shadow-2xl">
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
@@ -91,13 +166,30 @@ export default function ChatPanel({ projectId, onClose }) {
           return (
             <div key={m._id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
               {!mine && <span className="mb-0.5 text-xs text-slate-500">{m.sender?.name || "Former member"}</span>}
-              <p
-                className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm ${
+              <div
+                className={`max-w-[85%] space-y-2 break-words rounded-2xl px-3 py-2 text-sm ${
                   mine ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-100"
                 }`}
               >
-                {m.text}
-              </p>
+                {m.attachment?.fileId && (
+                  <button
+                    type="button"
+                    onClick={() => download(m)}
+                    title="Download"
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left ${
+                      mine ? "bg-indigo-600/60 hover:bg-indigo-600" : "bg-slate-700/60 hover:bg-slate-700"
+                    }`}
+                  >
+                    <FileIcon size={18} className="shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{m.attachment.name}</span>
+                      <span className="block text-[11px] opacity-70">{formatSize(m.attachment.size)}</span>
+                    </span>
+                    <Download size={16} className="shrink-0" />
+                  </button>
+                )}
+                {m.text && <p className="whitespace-pre-wrap">{m.text}</p>}
+              </div>
               <span className="mt-0.5 text-[10px] text-slate-600">
                 {new Date(m.createdAt).toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}
               </span>
@@ -109,7 +201,38 @@ export default function ChatPanel({ projectId, onClose }) {
 
       {error && <p className="mx-4 mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
 
+      {upload && (
+        <div className="mx-3 mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate">
+              Uploading {upload.name} ({formatSize(upload.size)})
+            </span>
+            <button
+              type="button"
+              onClick={() => abortRef.current?.abort()}
+              className="shrink-0 text-slate-400 hover:text-slate-200"
+            >
+              Cancel
+            </button>
+          </div>
+          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-700">
+            <div className="h-full bg-indigo-500 transition-all" style={{ width: `${upload.pct}%` }} />
+          </div>
+        </div>
+      )}
+
       <form onSubmit={send} className="flex gap-2 border-t border-slate-800 p-3">
+        <input ref={fileInputRef} type="file" onChange={attach} className="hidden" />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={!!upload}
+          aria-label="Attach a file"
+          title={`Attach a file (up to ${formatSize(MAX_UPLOAD_BYTES)})`}
+          className="rounded-lg border border-slate-700 px-3 text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+        >
+          <Paperclip size={16} />
+        </button>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}

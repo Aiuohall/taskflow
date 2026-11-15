@@ -4,6 +4,7 @@ import Task from "../models/Task.js";
 import User from "../models/User.js";
 import Invitation from "../models/Invitation.js";
 import mongoose from "mongoose";
+import Message from "../models/Message.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asString } from "../middleware/sanitize.js";
 
@@ -109,6 +110,13 @@ router.delete("/:id", async (req, res) => {
   }
   await Task.deleteMany({ project: project._id });
   await Invitation.deleteMany({ project: project._id });
+  // Remove uploaded chat files (GridFS) along with the messages.
+  const files = mongoose.connection.db.collection("chatfiles.files");
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: "chatfiles" });
+  for await (const f of files.find({ "metadata.project": project._id })) {
+    await bucket.delete(f._id).catch(() => {});
+  }
+  await Message.deleteMany({ project: project._id });
   await project.deleteOne();
   res.json({ message: "Project deleted" });
 });

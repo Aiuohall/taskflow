@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
@@ -134,6 +134,16 @@ export default function Board() {
   const [modal, setModal] = useState(null); // { task } or { status } for new
   const [showMembers, setShowMembers] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // A notification links here with ?chat=1: open the chat, then drop the flag
+  // so a refresh or the Back button doesn't reopen it.
+  useEffect(() => {
+    if (searchParams.get("chat") === "1") {
+      setShowChat(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberError, setMemberError] = useState("");
   const [memberInfo, setMemberInfo] = useState("");
