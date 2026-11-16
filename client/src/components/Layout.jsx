@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { LayoutDashboard, FolderKanban, LogOut, CheckSquare, Menu, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import InvitationBell from "./InvitationBell";
+import Avatar from "./Avatar";
 import { useEffect } from "react";
 
 const navItems = [
@@ -80,15 +81,17 @@ export default function Layout() {
         </nav>
 
         <div className="border-t border-slate-800 p-4">
-          <div className="mb-3 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-semibold text-indigo-300">
-              {user?.name?.[0]?.toUpperCase()}
-            </div>
+          <NavLink
+            to="/profile"
+            title="Your profile"
+            className="mb-3 flex items-center gap-3 rounded-lg p-1 transition-colors hover:bg-slate-800"
+          >
+            <Avatar user={user} size={36} />
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">{user?.name}</p>
               <p className="truncate text-xs text-slate-500">{user?.email}</p>
             </div>
-          </div>
+          </NavLink>
           <button
             onClick={handleLogout}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200"

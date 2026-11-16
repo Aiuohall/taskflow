@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Send, Paperclip, Download, File as FileIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import Avatar from "./Avatar";
 import api from "../api";
 
 // Any file type may be attached. The server enforces the real cap (never below
@@ -27,7 +28,7 @@ function formatSize(bytes) {
  */
 const POLL_MS = 4000;
 
-export default function ChatPanel({ projectId, onClose }) {
+export default function ChatPanel({ projectId, members = [], onClose }) {
   const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
@@ -163,11 +164,15 @@ export default function ChatPanel({ projectId, onClose }) {
         )}
         {messages.map((m) => {
           const mine = m.sender?._id === user?.id;
+          // Messages carry only the sender's name; the photo comes from the member list.
+          const sender = members.find((x) => x._id === m.sender?._id) || m.sender;
           return (
-            <div key={m._id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
+            <div key={m._id} className={`flex items-end gap-2 ${mine ? "flex-row-reverse" : ""}`}>
+              <Avatar user={mine ? user : sender} size={28} />
+              <div className={`flex min-w-0 max-w-[85%] flex-col ${mine ? "items-end" : "items-start"}`}>
               {!mine && <span className="mb-0.5 text-xs text-slate-500">{m.sender?.name || "Former member"}</span>}
               <div
-                className={`max-w-[85%] space-y-2 break-words rounded-2xl px-3 py-2 text-sm ${
+                className={`space-y-2 break-words rounded-2xl px-3 py-2 text-sm ${
                   mine ? "bg-indigo-500 text-white" : "bg-slate-800 text-slate-100"
                 }`}
               >
@@ -193,6 +198,7 @@ export default function ChatPanel({ projectId, onClose }) {
               <span className="mt-0.5 text-[10px] text-slate-600">
                 {new Date(m.createdAt).toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" })}
               </span>
+              </div>
             </div>
           );
         })}

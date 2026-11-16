@@ -12,6 +12,8 @@ const router = Router();
 router.use(requireAuth);
 
 const MEMBER_FIELDS = "name email";
+// Single-project lookups also carry avatars; the project list stays light.
+const DETAIL_FIELDS = "name email avatar";
 
 const isValidId = (id) => mongoose.isValidObjectId(id);
 
@@ -23,8 +25,8 @@ async function loadProject(req, res) {
     return null;
   }
   const project = await Project.findById(req.params.id)
-    .populate("owner", MEMBER_FIELDS)
-    .populate("members", MEMBER_FIELDS);
+    .populate("owner", DETAIL_FIELDS)
+    .populate("members", DETAIL_FIELDS);
   if (!project) {
     res.status(404).json({ message: "Project not found" });
     return null;

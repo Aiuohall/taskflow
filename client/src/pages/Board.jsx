@@ -14,6 +14,7 @@ import { ArrowLeft, Plus, UserPlus, X, Calendar, MessageSquare } from "lucide-re
 import api from "../api";
 import TaskModal from "../components/TaskModal";
 import ChatPanel from "../components/ChatPanel";
+import Avatar from "../components/Avatar";
 
 const COLUMNS = [
   { id: "todo", label: "To Do", dot: "bg-slate-400" },
@@ -316,7 +317,7 @@ export default function Board() {
         />
       )}
 
-      {showChat && <ChatPanel projectId={id} onClose={() => setShowChat(false)} />}
+      {showChat && <ChatPanel projectId={id} members={allMembers} onClose={() => setShowChat(false)} />}
 
       {showMembers && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -330,9 +331,7 @@ export default function Board() {
             <div className="mt-4 space-y-2">
               {allMembers.map((m, i) => (
                 <div key={m._id} className="flex items-center gap-3 rounded-lg bg-slate-800/50 px-4 py-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20 text-xs font-semibold text-indigo-300">
-                    {m.name[0].toUpperCase()}
-                  </span>
+                  <Avatar user={m} size={32} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{m.name}</p>
                     <p className="truncate text-xs text-slate-500">{m.email}</p>
