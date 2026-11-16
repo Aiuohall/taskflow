@@ -53,6 +53,14 @@ export function AuthProvider({ children }) {
     handleAuth(res.data);
   };
 
+  // Send any subset of { name, username, bio, jobTitle, avatar }; the server
+  // answers with the full updated profile.
+  const updateProfile = async (fields) => {
+    const res = await api.patch("/auth/me", fields);
+    setUser(res.data.user);
+    return res.data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem("taskflow_token");
     setUser(null);
@@ -69,6 +77,7 @@ export function AuthProvider({ children }) {
         resendCode,
         forgotPassword,
         resetPassword,
+        updateProfile,
         logout,
       }}
     >

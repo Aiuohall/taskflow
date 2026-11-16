@@ -18,6 +18,7 @@ const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Projects = lazy(() => import("./pages/Projects"));
 const Board = lazy(() => import("./pages/Board"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 function Spinner() {
   return (
@@ -64,6 +65,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="projects" element={<Projects />} />
           <Route path="projects/:id" element={<Board />} />
+          <Route path="profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

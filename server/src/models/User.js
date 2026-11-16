@@ -12,6 +12,15 @@ const userSchema = new mongoose.Schema(
       trim: true,
     },
     password: { type: String, required: true, minlength: 6, select: false },
+    // Optional handle, unique case-insensitively (stored lowercase). Sparse so
+    // the many accounts without one don't collide on "no value". To clear it,
+    // $unset the field; never store "" or null.
+    username: { type: String, trim: true, lowercase: true, unique: true, sparse: true },
+    bio: { type: String, default: "", trim: true, maxlength: 160 },
+    jobTitle: { type: String, default: "", trim: true, maxlength: 60 },
+    // Small (256px) JPEG/PNG/WebP data URL. Excluded by default so it never
+    // rides along on project/member/chat lookups; auth routes opt in.
+    avatar: { type: String, select: false },
   },
   { timestamps: true }
 );

@@ -21,8 +21,19 @@ function signToken(userId) {
 }
 
 function publicUser(user) {
-  return { id: user._id, name: user.name, email: user.email };
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    username: user.username || null,
+    bio: user.bio || "",
+    jobTitle: user.jobTitle || "",
+    avatar: user.avatar || null,
+  };
 }
+
+// Auth responses must include the avatar, which User queries omit by default.
+const loadPublic = async (id) => publicUser(await User.findById(id).select("+avatar").lean());
 
 // crypto.randomInt is uniform and unpredictable; Math.random is neither, and
 // a guessable OTP undermines the whole flow.
@@ -240,7 +251,7 @@ router.post("/login", loginLimiter, async (req, res, next) => {
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: "Invalid email or password" });
     }
-    res.json({ token: signToken(user._id), user: publicUser(user) });
+    res.json({ token: signToken(user._id), user: await loadPublic(user._id) });
   } catch (err) {
     next(err);
   }
@@ -354,7 +365,7 @@ router.post("/reset-password", async (req, res, next) => {
     await user.save();
     await pending.deleteOne();
 
-    res.json({ token: signToken(user._id), user: publicUser(user) });
+    res.json({ token: signToken(user._id), user: await loadPublic(user._id) });
   } catch (err) {
     next(err);
   }
@@ -364,10 +375,92 @@ router.post("/reset-password", async (req, res, next) => {
 
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId).lean();
+    const user = await User.findById(req.userId).select("+avatar").lean();
     if (!user) return res.status(404).json({ message: "User not found" });
     res.json({ user: publicUser(user) });
   } catch (err) {
+    next(err);
+  }
+});
+
+// ───────────────────────────── Profile ────────────────────────────────
+
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const AVATAR_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+// The client sends a 256px JPEG (~20-40 KB). This also keeps the body well
+// under express.json's 100 KB limit.
+const MAX_AVATAR_CHARS = 70000;
+
+const bad = (res, message, status = 400) => res.status(status).json({ message });
+
+/*
+ * PATCH /api/auth/me — update any subset of the editable profile fields.
+ * Email and password are deliberately not editable here: both need their own
+ * verification step.
+ */
+router.patch("/me", requireAuth, async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const set = {};
+    const unset = {};
+
+    if ("name" in body) {
+      const name = asString(body.name).trim();
+      if (!name || name.length > 60) return bad(res, "Name is required (up to 60 characters)");
+      set.name = name;
+    }
+
+    if ("username" in body) {
+      const username = asString(body.username).trim().replace(/^@/, "").toLowerCase();
+      if (!username) {
+        unset.username = "";
+      } else {
+        if (!USERNAME_RE.test(username)) {
+          return bad(res, "Usernames are 3-20 characters: letters, numbers and underscores");
+        }
+        if (await User.exists({ username, _id: { $ne: req.userId } })) {
+          return bad(res, "That username is already taken", 409);
+        }
+        set.username = username;
+      }
+    }
+
+    if ("bio" in body) {
+      const bio = asString(body.bio).trim();
+      if (bio.length > 160) return bad(res, "Bio can be up to 160 characters");
+      set.bio = bio;
+    }
+    if ("jobTitle" in body) {
+      const jobTitle = asString(body.jobTitle).trim();
+      if (jobTitle.length > 60) return bad(res, "Job title can be up to 60 characters");
+      set.jobTitle = jobTitle;
+    }
+
+    if ("avatar" in body) {
+      if (body.avatar === null) {
+        unset.avatar = "";
+      } else {
+        const avatar = asString(body.avatar);
+        if (avatar.length > MAX_AVATAR_CHARS || !AVATAR_RE.test(avatar)) {
+          return bad(res, "Please choose a PNG, JPEG or WebP image (it is resized automatically)");
+        }
+        set.avatar = avatar;
+      }
+    }
+
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
+    if (!Object.keys(update).length) return bad(res, "Nothing to update");
+
+    const user = await User.findByIdAndUpdate(req.userId, update, { new: true, runValidators: true })
+      .select("+avatar")
+      .lean();
+    if (!user) return bad(res, "User not found", 404);
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    // Two people claiming the same username in the same instant.
+    if (err?.code === 11000) return bad(res, "That username is already taken", 409);
     next(err);
   }
 });
