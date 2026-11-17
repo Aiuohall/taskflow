@@ -99,15 +99,15 @@ export default function Landing() {
   return (
     <main className="overflow-hidden">
       <Seo
-        title="TaskFlow | Free Kanban Project Management for Teams"
-        description="Plan projects, track tasks and keep team conversations in one free kanban project management workspace. Start organising work with TaskFlow."
+        title="TaskFlow by Aiuohall | Free Kanban Project Management for Teams"
+        description="TaskFlow by Aiuohall helps teams plan projects, track tasks and keep conversations in one free kanban workspace."
         path="/"
       />
       <div className="mx-auto max-w-6xl px-4 py-5 sm:px-6 lg:px-8">
         <header className="flex items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label="TaskFlow home">
+          <Link to="/" className="flex items-center gap-2 text-lg font-bold" aria-label="TaskFlow by Aiuohall home">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-indigo-500 text-white shadow-lg shadow-indigo-500/30"><CheckSquare className="h-5 w-5" aria-hidden="true" /></span>
-            TaskFlow
+            <span>TaskFlow <span className="text-sm font-medium text-slate-400">by Aiuohall</span></span>
           </Link>
           <nav aria-label="Main navigation" className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
             <a href="#features" className="transition hover:text-white">Features</a>
@@ -199,7 +199,7 @@ export default function Landing() {
         </section>
 
         <footer className="flex flex-col gap-3 border-t border-white/10 py-8 text-sm text-slate-400 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {new Date().getFullYear()} TaskFlow. Project management made clear.</p>
+          <p>© {new Date().getFullYear()} TaskFlow by Aiuohall. Project management made clear.</p>
           <div className="flex gap-4"><Link to="/login" className="hover:text-white">Log in</Link><Link to="/register" className="hover:text-white">Create account</Link></div>
         </footer>
       </div>
