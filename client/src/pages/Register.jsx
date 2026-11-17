@@ -60,7 +60,7 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
-      <Seo title="Sign up free — TaskFlow" description="Create a free TaskFlow account and start organising projects with kanban boards, tasks and team chat." path="/register" />
+      <Seo title="Sign up free — TaskFlow" description="Create a free TaskFlow account and start organising projects with kanban boards, tasks and team chat." path="/register" noindex />
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500">

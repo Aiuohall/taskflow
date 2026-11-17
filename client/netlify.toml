@@ -31,6 +31,23 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
+# Let crawlers access these responses so they can see the noindex directive
+# rather than merely discovering a blocked URL from a link.
+[[headers]]
+  for = "/login"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/register"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/forgot-password"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
 [[headers]]
   for = "/*"
   [headers.values]

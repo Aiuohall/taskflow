@@ -1,10 +1,8 @@
 User-agent: *
 Allow: /
-Allow: /login
-Allow: /register
-# Signed-in screens have nothing to index.
+# Account screens send an X-Robots-Tag and a page-level noindex directive.
+# Do not block them here: a crawler must fetch the route to see that directive.
 Disallow: /projects
 Disallow: /profile
-Disallow: /forgot-password
 
 Sitemap: https://taskflow.aiuohall.dev/sitemap.xml
