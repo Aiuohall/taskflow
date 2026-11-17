@@ -5,19 +5,51 @@
     <!-- viewport-fit=cover lets the page paint under the notch/home indicator;
          index.css then pads content back with env(safe-area-inset-*). -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="TaskFlow — kanban boards, team projects and task tracking." />
+    <meta name="description" content="TaskFlow is a free project management app: kanban boards, team projects, task tracking, project chat and deadlines in one place. Sign up in seconds." />
+    <meta name="keywords" content="project management, kanban board, task manager, team collaboration, task tracking, to-do app, TaskFlow" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="canonical" href="https://taskflow.aiuohall.dev/" />
+
+    <!-- Open Graph / Twitter: controls how links look when shared. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TaskFlow" />
+    <meta property="og:title" content="TaskFlow — Free Kanban Project Management" />
+    <meta property="og:description" content="Kanban boards, team projects, task tracking and project chat in one free app." />
+    <meta property="og:url" content="https://taskflow.aiuohall.dev/" />
+    <meta property="og:image" content="https://taskflow.aiuohall.dev/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TaskFlow — Free Kanban Project Management" />
+    <meta name="twitter:description" content="Kanban boards, team projects, task tracking and project chat in one free app." />
+    <meta name="twitter:image" content="https://taskflow.aiuohall.dev/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "TaskFlow",
+        "url": "https://taskflow.aiuohall.dev/",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Any (web browser)",
+        "description": "Project management with kanban boards, team projects, task tracking and project chat.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <!-- Colours the browser chrome on Android and iOS to match the app. -->
     <meta name="theme-color" content="#020617" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="TaskFlow" />
-    <title>TaskFlow — Project Management</title>
+    <title>TaskFlow — Free Kanban Project Management &amp; Task Tracking</title>
     <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;rect width='100' height='100' rx='20' fill='%236366f1'/&gt;&lt;path d='M25 52 l18 18 l32 -38' stroke='white' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/&gt;&lt;/svg&gt;" />
     <link rel="apple-touch-icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;rect width='100' height='100' rx='20' fill='%236366f1'/&gt;&lt;path d='M25 52 l18 18 l32 -38' stroke='white' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/&gt;&lt;/svg&gt;" />
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <h1>TaskFlow — free kanban project management</h1>
+      <p>Organise team projects with kanban boards, track tasks and deadlines, and chat with your team. Enable JavaScript to use TaskFlow.</p>
+    </noscript>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

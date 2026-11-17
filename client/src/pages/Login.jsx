@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CheckSquare } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import PasswordInput from "../components/PasswordInput";
+import Seo from "../components/Seo";
 
 export default function Login() {
   const { login } = useAuth();
@@ -27,6 +28,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <Seo title="Log in — TaskFlow" description="Log in to TaskFlow to manage your kanban boards, projects and tasks." path="/login" />
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500">

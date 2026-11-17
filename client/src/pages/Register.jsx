@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { CheckSquare, MailCheck, ArrowLeft } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import PasswordInput from "../components/PasswordInput";
+import Seo from "../components/Seo";
 
 const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm outline-none transition-colors focus:border-indigo-500";
@@ -59,6 +60,7 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
+      <Seo title="Sign up free — TaskFlow" description="Create a free TaskFlow account and start organising projects with kanban boards, tasks and team chat." path="/register" />
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center gap-3 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500">

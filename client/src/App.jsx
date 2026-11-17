@@ -1,9 +1,10 @@
 import { lazy, Suspense } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import WakeBanner from "./components/WakeBanner";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 
 /*
  * Everything past the login screen is loaded on demand.
@@ -28,11 +29,15 @@ function Spinner() {
   );
 }
 
-function Protected({ children }) {
+// Signed-in users get the app shell. Logged-out visitors (and crawlers) see the
+// public landing page at "/" and are sent to /login for any private URL.
+function Gate() {
   const { user, loading } = useAuth();
+  const { pathname } = useLocation();
   if (loading) return <Spinner />;
-  if (!user) return <Navigate to="/login" replace />;
-  return children;
+  if (user) return <Layout />;
+  if (pathname === "/") return <Landing />;
+  return <Navigate to="/login" replace />;
 }
 
 // Warm the chunks for the screens a signed-in user hits first, once the
@@ -56,11 +61,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route
           path="/"
-          element={
-            <Protected>
-              <Layout />
-            </Protected>
-          }
+          element={<Gate />}
         >
           <Route index element={<Dashboard />} />
           <Route path="projects" element={<Projects />} />

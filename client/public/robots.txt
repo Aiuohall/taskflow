@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+# Signed-in screens have nothing to index.
+Disallow: /projects
+Disallow: /profile
+Disallow: /forgot-password
+
+Sitemap: https://taskflow.aiuohall.dev/sitemap.xml

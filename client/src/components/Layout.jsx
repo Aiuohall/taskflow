@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import InvitationBell from "./InvitationBell";
 import Avatar from "./Avatar";
 import { useEffect } from "react";
+import Seo from "./Seo";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -29,6 +30,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen">
+      <Seo title="TaskFlow — Project Management" path="/" noindex />
       {/* Backdrop — only on mobile when the drawer is open */}
       {open && (
         <div
