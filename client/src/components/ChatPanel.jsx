@@ -8,6 +8,9 @@ import api from "../api";
 // 1 GB); this only lets the UI refuse early. Raise it with VITE_MAX_UPLOAD_MB.
 const MAX_UPLOAD_MB = Math.max(1024, Number(import.meta.env.VITE_MAX_UPLOAD_MB) || 1024);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const COMPRESSIBLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_IMAGE_DIMENSION = 2048;
+const IMAGE_QUALITY = 0.85;
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -19,6 +22,53 @@ function formatSize(bytes) {
     i++;
   }
   return `${n.toFixed(n < 10 ? 1 : 0)} ${units[i]}`;
+}
+
+function outputImageName(name, mime) {
+  if (mime === "image/jpeg" && /\.jpe?g$/i.test(name)) return name;
+  const extension = mime === "image/jpeg" ? "jpg" : "webp";
+  const dot = name.lastIndexOf(".");
+  return `${dot > 0 ? name.slice(0, dot) : name}.${extension}`;
+}
+
+// Photos are resized and re-encoded in the browser, before any bytes leave
+// the device. Documents, videos, GIFs, SVGs, and every other file type bypass
+// this function and are uploaded exactly as selected.
+async function optimizePhoto(file) {
+  if (!COMPRESSIBLE_IMAGE_TYPES.has(file.type)) return file;
+
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("Photo could not be read"));
+      element.src = url;
+    });
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d").drawImage(image, 0, 0, width, height);
+
+    // JPEG photos stay JPEG; PNG and WebP photos become WebP so transparency
+    // is preserved while still producing a substantially smaller image.
+    const outputType = file.type === "image/jpeg" ? "image/jpeg" : "image/webp";
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, outputType, IMAGE_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], outputImageName(file.name, outputType), {
+      type: outputType,
+      lastModified: file.lastModified,
+    });
+  } catch {
+    // Keep the original if a browser cannot decode or encode this photo.
+    return file;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /**
@@ -99,11 +149,8 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
     e.target.value = ""; // lets the same file be picked again later
     if (!files.length || upload || abortRef.current) return;
 
-    const invalid = files.find((file) => file.size === 0 || file.size > MAX_UPLOAD_BYTES);
-    if (invalid) {
-      if (invalid.size === 0) return setError(`"${invalid.name}" is empty.`);
-      return setError(`"${invalid.name}" is ${formatSize(invalid.size)}. The limit is ${formatSize(MAX_UPLOAD_BYTES)}.`);
-    }
+    const empty = files.find((file) => file.size === 0);
+    if (empty) return setError(`"${empty.name}" is empty.`);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -111,8 +158,36 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
     const caption = text.trim().slice(0, 2000);
     let completed = 0;
     try {
-      for (const [index, file] of files.entries()) {
-        setUpload({ name: file.name, size: file.size, pct: 0, current: index + 1, total: files.length });
+      for (const [index, sourceFile] of files.entries()) {
+        setUpload({
+          name: sourceFile.name,
+          size: sourceFile.size,
+          pct: 0,
+          current: index + 1,
+          total: files.length,
+          preparing: true,
+        });
+        const file = await optimizePhoto(sourceFile);
+        if (controller.signal.aborted) {
+          const cancelled = new Error("Upload cancelled");
+          cancelled.code = "ERR_CANCELED";
+          throw cancelled;
+        }
+        if (file.size > MAX_UPLOAD_BYTES) {
+          const tooLarge = new Error("File too large");
+          tooLarge.userMessage = `"${file.name}" is ${formatSize(file.size)}. The limit is ${formatSize(MAX_UPLOAD_BYTES)}.`;
+          throw tooLarge;
+        }
+        setUpload({
+          name: file.name,
+          size: file.size,
+          originalSize: sourceFile.size,
+          compressed: file !== sourceFile,
+          pct: 0,
+          current: index + 1,
+          total: files.length,
+          preparing: false,
+        });
         // Raw bytes are streamed to storage; metadata rides in headers. Only
         // the first attachment gets the draft text, so the caption isn't
         // repeated on every file message.
@@ -127,7 +202,7 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
           signal: controller.signal,
           onUploadProgress: (p) =>
             setUpload((u) =>
-              u && u.current === index + 1
+              u && !u.preparing && u.current === index + 1
                 ? { ...u, pct: p.total ? Math.round((p.loaded / p.total) * 100) : 0 }
                 : u
             ),
@@ -229,7 +304,7 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
         <div className="mx-3 mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="min-w-0 truncate">
-              Uploading {upload.total > 1 ? `${upload.current} of ${upload.total}: ` : ""}
+              {upload.preparing ? "Preparing photo" : "Uploading"} {upload.total > 1 ? `${upload.current} of ${upload.total}: ` : ""}
               {upload.name} ({formatSize(upload.size)})
             </span>
             <button
@@ -241,8 +316,14 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
             </button>
           </div>
           <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-700">
-            <div className="h-full bg-indigo-500 transition-all" style={{ width: `${upload.pct}%` }} />
+            <div
+              className={`h-full bg-indigo-500 transition-all ${upload.preparing ? "animate-pulse" : ""}`}
+              style={{ width: `${upload.preparing ? 25 : upload.pct}%` }}
+            />
           </div>
+          {upload.compressed && !upload.preparing && (
+            <p className="mt-1 text-[11px] text-slate-400">Photo optimized from {formatSize(upload.originalSize)}</p>
+          )}
         </div>
       )}
 
