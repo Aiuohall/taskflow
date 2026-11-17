@@ -145,7 +145,7 @@ export default function Board() {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
-  const [memberEmail, setMemberEmail] = useState("");
+  const [memberIdentifier, setMemberIdentifier] = useState("");
   const [memberError, setMemberError] = useState("");
   const [memberInfo, setMemberInfo] = useState("");
 
@@ -217,9 +217,9 @@ export default function Board() {
     setMemberError("");
     setMemberInfo("");
     try {
-      const res = await api.post(`/projects/${id}/members`, { email: memberEmail });
+      const res = await api.post(`/projects/${id}/members`, { identifier: memberIdentifier });
       setMemberInfo(res.data.message);
-      setMemberEmail("");
+      setMemberIdentifier("");
     } catch (err) {
       setMemberError(
         err.response?.data?.message || err.userMessage || "Could not send the invitation"
@@ -353,11 +353,12 @@ export default function Board() {
               )}
               <div className="flex gap-2">
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={memberEmail}
-                  onChange={(e) => setMemberEmail(e.target.value)}
-                  placeholder="teammate@example.com"
+                  value={memberIdentifier}
+                  onChange={(e) => setMemberIdentifier(e.target.value)}
+                  placeholder="Paste profile link or enter email"
+                  autoCapitalize="none"
                   className="flex-1 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
                 />
                 <button
@@ -368,8 +369,8 @@ export default function Board() {
                 </button>
               </div>
               <p className="mt-2 text-xs text-slate-500">
-                They must already have a TaskFlow account, and they'll appear here once
-                they accept the invitation.
+                Paste a TaskFlow profile link (or enter their email). They must already have an
+                account and will appear here once they accept the invitation.
               </p>
             </form>
           </div>

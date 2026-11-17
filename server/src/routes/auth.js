@@ -2,7 +2,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import User from "../models/User.js";
+import User, { createProfileId } from "../models/User.js";
 import VerificationCode, { hashCode } from "../models/VerificationCode.js";
 import { requireAuth } from "../middleware/auth.js";
 import { loginLimiter, otpLimiter } from "../middleware/rateLimiters.js";
@@ -29,11 +29,34 @@ function publicUser(user) {
     bio: user.bio || "",
     jobTitle: user.jobTitle || "",
     avatar: user.avatar || null,
+    profileId: user.profileId || null,
   };
 }
 
 // Auth responses must include the avatar, which User queries omit by default.
-const loadPublic = async (id) => publicUser(await User.findById(id).select("+avatar").lean());
+// Older accounts predate profileId, so mint one the first time they load their
+// profile. Keeping this lazy avoids a risky, deployment-time migration.
+async function loadPublic(id) {
+  const user = await User.findById(id).select("+avatar");
+  if (!user) return null;
+
+  if (!user.profileId) {
+    // A collision is extraordinarily unlikely, but retrying makes the unique
+    // index a hard guarantee rather than an assumption about random bytes.
+    for (let attempt = 0; attempt < 3 && !user.profileId; attempt += 1) {
+      user.profileId = createProfileId();
+      try {
+        await user.save();
+      } catch (err) {
+        if (err?.code !== 11000) throw err;
+        user.profileId = undefined;
+      }
+    }
+    if (!user.profileId) throw new Error("Could not create a unique profile link");
+  }
+
+  return publicUser(user);
+}
 
 // crypto.randomInt is uniform and unpredictable; Math.random is neither, and
 // a guessable OTP undermines the whole flow.
@@ -375,9 +398,9 @@ router.post("/reset-password", async (req, res, next) => {
 
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
-    const user = await User.findById(req.userId).select("+avatar").lean();
+    const user = await loadPublic(req.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ user: publicUser(user) });
+    res.json({ user });
   } catch (err) {
     next(err);
   }
@@ -453,11 +476,9 @@ router.patch("/me", requireAuth, async (req, res, next) => {
     if (Object.keys(unset).length) update.$unset = unset;
     if (!Object.keys(update).length) return bad(res, "Nothing to update");
 
-    const user = await User.findByIdAndUpdate(req.userId, update, { new: true, runValidators: true })
-      .select("+avatar")
-      .lean();
+    const user = await User.findByIdAndUpdate(req.userId, update, { new: true, runValidators: true });
     if (!user) return bad(res, "User not found", 404);
-    res.json({ user: publicUser(user) });
+    res.json({ user: await loadPublic(req.userId) });
   } catch (err) {
     // Two people claiming the same username in the same instant.
     if (err?.code === 11000) return bad(res, "That username is already taken", 409);

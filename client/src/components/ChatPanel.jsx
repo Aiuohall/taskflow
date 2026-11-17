@@ -34,7 +34,10 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
-  const [upload, setUpload] = useState(null); // { name, size, pct } while a file is uploading
+  // Files from one picker selection are uploaded sequentially. This preserves
+  // the API's streaming, multi-GB-safe upload path while still letting users
+  // send a batch in one action.
+  const [upload, setUpload] = useState(null); // { name, size, pct, current, total }
   const endRef = useRef(null);
   const lastRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -76,7 +79,7 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
   const send = async (e) => {
     e.preventDefault();
     const body = text.trim();
-    if (!body || sending) return;
+    if (!body || sending || upload) return;
     setSending(true);
     try {
       const res = await api.post(`/chat/${projectId}/messages`, { text: body });
@@ -92,37 +95,52 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
   };
 
   const attach = async (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = ""; // lets the same file be picked again later
-    if (!file || upload) return;
-    if (file.size === 0) return setError("That file is empty");
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return setError(`"${file.name}" is ${formatSize(file.size)}. The limit is ${formatSize(MAX_UPLOAD_BYTES)}.`);
+    if (!files.length || upload || abortRef.current) return;
+
+    const invalid = files.find((file) => file.size === 0 || file.size > MAX_UPLOAD_BYTES);
+    if (invalid) {
+      if (invalid.size === 0) return setError(`"${invalid.name}" is empty.`);
+      return setError(`"${invalid.name}" is ${formatSize(invalid.size)}. The limit is ${formatSize(MAX_UPLOAD_BYTES)}.`);
     }
+
     const controller = new AbortController();
     abortRef.current = controller;
     setError("");
-    setUpload({ name: file.name, size: file.size, pct: 0 });
+    const caption = text.trim().slice(0, 2000);
+    let completed = 0;
     try {
-      // Raw bytes as the body (the server streams them to storage); metadata rides in headers.
-      const res = await api.post(`/chat/${projectId}/upload`, file, {
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "X-Filename": encodeURIComponent(file.name),
-          "X-Filetype": file.type || "application/octet-stream",
-          "X-Caption": encodeURIComponent(text.trim().slice(0, 2000)),
-        },
-        timeout: 0, // a large file legitimately takes minutes
-        signal: controller.signal,
-        onUploadProgress: (p) =>
-          setUpload((u) => u && { ...u, pct: p.total ? Math.round((p.loaded / p.total) * 100) : 0 }),
-      });
-      lastRef.current = res.data.createdAt;
-      setMessages((cur) => (cur.some((m) => m._id === res.data._id) ? cur : [...cur, res.data]));
-      setText("");
+      for (const [index, file] of files.entries()) {
+        setUpload({ name: file.name, size: file.size, pct: 0, current: index + 1, total: files.length });
+        // Raw bytes are streamed to storage; metadata rides in headers. Only
+        // the first attachment gets the draft text, so the caption isn't
+        // repeated on every file message.
+        const res = await api.post(`/chat/${projectId}/upload`, file, {
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-Filename": encodeURIComponent(file.name),
+            "X-Filetype": file.type || "application/octet-stream",
+            "X-Caption": encodeURIComponent(index === 0 ? caption : ""),
+          },
+          timeout: 0, // a large file legitimately takes minutes
+          signal: controller.signal,
+          onUploadProgress: (p) =>
+            setUpload((u) =>
+              u && u.current === index + 1
+                ? { ...u, pct: p.total ? Math.round((p.loaded / p.total) * 100) : 0 }
+                : u
+            ),
+        });
+        completed += 1;
+        lastRef.current = res.data.createdAt;
+        setMessages((cur) => (cur.some((m) => m._id === res.data._id) ? cur : [...cur, res.data]));
+        if (index === 0) setText("");
+      }
     } catch (err) {
-      if (err.code !== "ERR_CANCELED") {
-        setError(err.response?.data?.message || err.userMessage || "Upload failed");
+      if (err.code !== "ERR_CANCELED" && !controller.signal.aborted) {
+        const reason = err.response?.data?.message || err.userMessage || "Upload failed";
+        setError(completed ? `${completed} of ${files.length} files uploaded. ${reason}` : reason);
       }
     } finally {
       abortRef.current = null;
@@ -211,7 +229,8 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
         <div className="mx-3 mt-3 rounded-lg bg-slate-800 px-3 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
             <span className="min-w-0 truncate">
-              Uploading {upload.name} ({formatSize(upload.size)})
+              Uploading {upload.total > 1 ? `${upload.current} of ${upload.total}: ` : ""}
+              {upload.name} ({formatSize(upload.size)})
             </span>
             <button
               type="button"
@@ -228,13 +247,13 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
       )}
 
       <form onSubmit={send} className="flex gap-2 border-t border-slate-800 p-3">
-        <input ref={fileInputRef} type="file" onChange={attach} className="hidden" />
+        <input ref={fileInputRef} type="file" multiple onChange={attach} className="hidden" />
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={!!upload}
-          aria-label="Attach a file"
-          title={`Attach a file (up to ${formatSize(MAX_UPLOAD_BYTES)})`}
+          aria-label="Attach files"
+          title={`Attach files (up to ${formatSize(MAX_UPLOAD_BYTES)} each)`}
           className="rounded-lg border border-slate-700 px-3 text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
         >
           <Paperclip size={16} />
@@ -244,11 +263,12 @@ export default function ChatPanel({ projectId, members = [], onClose }) {
           onChange={(e) => setText(e.target.value)}
           maxLength={2000}
           placeholder="Message the group…"
+          disabled={!!upload}
           className="flex-1 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2.5 text-sm outline-none focus:border-indigo-500"
         />
         <button
           type="submit"
-          disabled={sending || !text.trim()}
+          disabled={sending || !!upload || !text.trim()}
           aria-label="Send"
           className="rounded-lg bg-indigo-500 px-3 text-white transition-colors hover:bg-indigo-400 disabled:opacity-50"
         >
